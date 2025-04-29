@@ -1,0 +1,39 @@
+/**
+ * CravenDunnill_TileSamples extension
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Open Software License (OSL 3.0)
+ * that is bundled with this package in the file LICENSE.txt.
+ *
+ * @category   CravenDunnill
+ * @package    CravenDunnill_TileSamples
+ * @copyright  Copyright (c) 2025 CravenDunnill
+ * @license    http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
+ */
+
+.tile-sample-button-container {
+    margin: 15px 0;
+}
+
+.tile-sample-button-container .tile-sample-button {
+    background-color: #002C5A;
+    border-color: #002C5A;
+    color: #ffffff;
+    width: 100%;
+}
+
+.tile-sample-button-container .tile-sample-button:hover {
+    background-color: #001F3F;
+    border-color: #001F3F;
+}
+
+.tile-sample-button-container .tile-sample-button-disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.tile-sample-button-container .tile-sample-button-disabled:hover {
+    background-color: #002C5A;
+    border-color: #002C5A;
+}
