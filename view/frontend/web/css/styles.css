@@ -17,15 +17,18 @@
 }
 
 .tile-sample-button-container .tile-sample-button {
-    background-color: #002C5A;
-    border-color: #002C5A;
-    color: #ffffff;
-    width: 100%;
+    background-color: #ffffff !important;
+    border-color: #002C5A !important;
+    color: #002C5A !important;
+    width: calc(100% - 30px);
+    margin-left: 15px;
+    margin-right: 15px;
 }
 
 .tile-sample-button-container .tile-sample-button:hover {
-    background-color: #001F3F;
-    border-color: #001F3F;
+    background-color: #002C5A !important;
+    border-color: #002C5A !important;
+    color: #ffffff !important;
 }
 
 .tile-sample-button-container .tile-sample-button-disabled {
@@ -36,4 +39,19 @@
 .tile-sample-button-container .tile-sample-button-disabled:hover {
     background-color: #002C5A;
     border-color: #002C5A;
+    color: #ffffff;
+}
+
+.tick-icon {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
+    text-align: center;
+    border-radius: 50%;
+    background-color: #002C5A;
+    color: #ffffff;
+    margin-right: 5px;
+    font-style: normal;
+    font-weight: bold;
 }

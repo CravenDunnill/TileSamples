@@ -21,16 +21,16 @@
             <form data-role="tile-sample-form" action="<?= $block->escapeUrl($block->getAddToCartUrl()) ?>" method="post">
                 <?= $block->getBlockHtml('formkey') ?>
                 <button type="submit"
-                        title="<?= $block->escapeHtmlAttr(__('Free Cut Sample')) ?>"
+                        title="<?= $block->escapeHtmlAttr(__('Order a Free Cut Sample')) ?>"
                         class="action primary tile-sample-button">
-                    <span><?= $block->escapeHtml(__('Free Cut Sample')) ?></span>
+                    <span><?= $block->escapeHtml(__('Order a Free Cut Sample')) ?></span>
                 </button>
             </form>
         <?php else: ?>
             <button type="button"
                     disabled="disabled"
                     class="action primary tile-sample-button tile-sample-button-disabled">
-                <span><?= $block->escapeHtml(__('Free Cut Sample Already In Cart')) ?></span>
+                <span><i class="tick-icon">✓</i> <?= $block->escapeHtml(__('Free Cut Sample Already In Cart')) ?></span>
             </button>
         <?php endif; ?>
     </div>
