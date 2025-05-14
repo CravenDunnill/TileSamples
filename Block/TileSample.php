@@ -20,6 +20,8 @@ use Magento\Framework\View\Element\Template\Context;
 use Magento\Framework\Registry;
 use CravenDunnill\TileSamples\Helper\Data as TileSampleHelper;
 use Magento\Catalog\Model\ProductRepository;
+use Magento\CatalogInventory\Api\StockRegistryInterface;
+use Magento\Framework\Exception\NoSuchEntityException;
 
 class TileSample extends Template
 {
@@ -37,6 +39,11 @@ class TileSample extends Template
 	 * @var ProductRepository
 	 */
 	protected $productRepository;
+	
+	/**
+	 * @var StockRegistryInterface
+	 */
+	protected $stockRegistry;
 
 	/**
 	 * TileSample constructor.
@@ -45,6 +52,7 @@ class TileSample extends Template
 	 * @param Registry $registry
 	 * @param TileSampleHelper $tileSampleHelper
 	 * @param ProductRepository $productRepository
+	 * @param StockRegistryInterface $stockRegistry
 	 * @param array $data
 	 */
 	public function __construct(
@@ -52,11 +60,13 @@ class TileSample extends Template
 		Registry $registry,
 		TileSampleHelper $tileSampleHelper,
 		ProductRepository $productRepository,
+		StockRegistryInterface $stockRegistry,
 		array $data = []
 	) {
 		$this->registry = $registry;
 		$this->tileSampleHelper = $tileSampleHelper;
 		$this->productRepository = $productRepository;
+		$this->stockRegistry = $stockRegistry;
 		parent::__construct($context, $data);
 	}
 
@@ -83,7 +93,43 @@ class TileSample extends Template
 		}
 
 		$sampleSku = $this->tileSampleHelper->getTileSampleSku($product);
-		return !empty($sampleSku);
+		if (empty($sampleSku)) {
+			return false;
+		}
+		
+		// Check if sample product is enabled and in stock
+		return $this->isSampleProductAvailable($sampleSku);
+	}
+
+	/**
+	 * Check if sample product is enabled and in stock
+	 *
+	 * @param string $sampleSku
+	 * @return bool
+	 */
+	protected function isSampleProductAvailable($sampleSku)
+	{
+		try {
+			// Load sample product
+			$sampleProduct = $this->productRepository->get($sampleSku);
+			
+			// Check if product is enabled
+			if (!$sampleProduct->getStatus() || $sampleProduct->getStatus() == \Magento\Catalog\Model\Product\Attribute\Source\Status::STATUS_DISABLED) {
+				return false;
+			}
+			
+			// Check stock status
+			$stockItem = $this->stockRegistry->getStockItemBySku($sampleSku);
+			if (!$stockItem->getIsInStock() || ($stockItem->getQty() <= 0 && !$stockItem->getBackorders())) {
+				return false;
+			}
+			
+			return true;
+		} catch (NoSuchEntityException $e) {
+			return false;
+		} catch (\Exception $e) {
+			return false;
+		}
 	}
 
 	/**

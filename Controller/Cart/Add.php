@@ -25,6 +25,7 @@ use Magento\Catalog\Model\ProductRepository;
 use CravenDunnill\TileSamples\Helper\Data;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\CatalogInventory\Api\StockRegistryInterface;
 
 class Add extends Action implements HttpPostActionInterface
 {
@@ -52,6 +53,11 @@ class Add extends Action implements HttpPostActionInterface
 	 * @var Data
 	 */
 	protected $helper;
+	
+	/**
+	 * @var StockRegistryInterface
+	 */
+	protected $stockRegistry;
 
 	/**
 	 * Add constructor.
@@ -62,6 +68,7 @@ class Add extends Action implements HttpPostActionInterface
 	 * @param Cart $cart
 	 * @param ProductRepository $productRepository
 	 * @param Data $helper
+	 * @param StockRegistryInterface $stockRegistry
 	 */
 	public function __construct(
 		Context $context,
@@ -69,7 +76,8 @@ class Add extends Action implements HttpPostActionInterface
 		ManagerInterface $messageManager,
 		Cart $cart,
 		ProductRepository $productRepository,
-		Data $helper
+		Data $helper,
+		StockRegistryInterface $stockRegistry
 	) {
 		parent::__construct($context);
 		$this->resultRedirectFactory = $resultRedirectFactory;
@@ -77,6 +85,7 @@ class Add extends Action implements HttpPostActionInterface
 		$this->cart = $cart;
 		$this->productRepository = $productRepository;
 		$this->helper = $helper;
+		$this->stockRegistry = $stockRegistry;
 	}
 
 	/**
@@ -103,6 +112,19 @@ class Add extends Action implements HttpPostActionInterface
 
 			// Load the product by SKU
 			$product = $this->productRepository->get($sku);
+			
+			// Check if product is enabled
+			if (!$product->getStatus() || $product->getStatus() == \Magento\Catalog\Model\Product\Attribute\Source\Status::STATUS_DISABLED) {
+				$this->messageManager->addErrorMessage(__('This tile sample is not available.'));
+				return $resultRedirect->setRefererUrl();
+			}
+			
+			// Check stock status
+			$stockItem = $this->stockRegistry->getStockItemBySku($sku);
+			if (!$stockItem->getIsInStock() || ($stockItem->getQty() <= 0 && !$stockItem->getBackorders())) {
+				$this->messageManager->addErrorMessage(__('This tile sample is out of stock.'));
+				return $resultRedirect->setRefererUrl();
+			}
 			
 			// Add product to cart
 			$this->cart->addProduct($product, ['qty' => 1]);
