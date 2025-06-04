@@ -19,6 +19,7 @@ use Magento\Framework\App\Action\Action;
 use Magento\Framework\App\Action\Context;
 use Magento\Framework\App\Action\HttpPostActionInterface;
 use Magento\Framework\Controller\Result\RedirectFactory;
+use Magento\Framework\Controller\Result\JsonFactory;
 use Magento\Framework\Message\ManagerInterface;
 use Magento\Checkout\Model\Cart;
 use Magento\Catalog\Model\ProductRepository;
@@ -33,6 +34,11 @@ class Add extends Action implements HttpPostActionInterface
 	 * @var RedirectFactory
 	 */
 	protected $resultRedirectFactory;
+
+	/**
+	 * @var JsonFactory
+	 */
+	protected $resultJsonFactory;
 
 	/**
 	 * @var ManagerInterface
@@ -69,6 +75,7 @@ class Add extends Action implements HttpPostActionInterface
 	 * @param ProductRepository $productRepository
 	 * @param Data $helper
 	 * @param StockRegistryInterface $stockRegistry
+	 * @param JsonFactory $resultJsonFactory
 	 */
 	public function __construct(
 		Context $context,
@@ -77,7 +84,8 @@ class Add extends Action implements HttpPostActionInterface
 		Cart $cart,
 		ProductRepository $productRepository,
 		Data $helper,
-		StockRegistryInterface $stockRegistry
+		StockRegistryInterface $stockRegistry,
+		JsonFactory $resultJsonFactory
 	) {
 		parent::__construct($context);
 		$this->resultRedirectFactory = $resultRedirectFactory;
@@ -86,27 +94,51 @@ class Add extends Action implements HttpPostActionInterface
 		$this->productRepository = $productRepository;
 		$this->helper = $helper;
 		$this->stockRegistry = $stockRegistry;
+		$this->resultJsonFactory = $resultJsonFactory;
 	}
 
 	/**
 	 * Execute action
 	 *
-	 * @return \Magento\Framework\Controller\Result\Redirect
+	 * @return \Magento\Framework\Controller\Result\Redirect|\Magento\Framework\Controller\Result\Json
 	 */
 	public function execute()
 	{
-		$resultRedirect = $this->resultRedirectFactory->create();
 		$sku = $this->getRequest()->getParam('sku');
+		$isAjax = $this->getRequest()->isAjax();
 
 		if (!$sku) {
-			$this->messageManager->addErrorMessage(__('Invalid tile sample SKU.'));
+			$message = __('Invalid tile sample SKU.');
+			$this->messageManager->addErrorMessage($message);
+			
+			if ($isAjax) {
+				$result = $this->resultJsonFactory->create();
+				return $result->setData([
+					'success' => false,
+					'message' => $message->render()
+				]);
+			}
+			
+			$resultRedirect = $this->resultRedirectFactory->create();
 			return $resultRedirect->setRefererUrl();
 		}
 
 		try {
 			// Check if sample is already in cart
 			if ($this->helper->isTileSampleInCart($sku)) {
-				$this->messageManager->addErrorMessage(__('You already have this tile sample in your cart.'));
+				$message = __('You already have this tile sample in your cart.');
+				$this->messageManager->addErrorMessage($message);
+				
+				if ($isAjax) {
+					$result = $this->resultJsonFactory->create();
+					return $result->setData([
+						'success' => false,
+						'message' => $message->render(),
+						'already_in_cart' => true
+					]);
+				}
+				
+				$resultRedirect = $this->resultRedirectFactory->create();
 				return $resultRedirect->setRefererUrl();
 			}
 
@@ -115,14 +147,36 @@ class Add extends Action implements HttpPostActionInterface
 			
 			// Check if product is enabled
 			if (!$product->getStatus() || $product->getStatus() == \Magento\Catalog\Model\Product\Attribute\Source\Status::STATUS_DISABLED) {
-				$this->messageManager->addErrorMessage(__('This tile sample is not available.'));
+				$message = __('This tile sample is not available.');
+				$this->messageManager->addErrorMessage($message);
+				
+				if ($isAjax) {
+					$result = $this->resultJsonFactory->create();
+					return $result->setData([
+						'success' => false,
+						'message' => $message->render()
+					]);
+				}
+				
+				$resultRedirect = $this->resultRedirectFactory->create();
 				return $resultRedirect->setRefererUrl();
 			}
 			
 			// Check stock status
 			$stockItem = $this->stockRegistry->getStockItemBySku($sku);
 			if (!$stockItem->getIsInStock() || ($stockItem->getQty() <= 0 && !$stockItem->getBackorders())) {
-				$this->messageManager->addErrorMessage(__('This tile sample is out of stock.'));
+				$message = __('This tile sample is out of stock.');
+				$this->messageManager->addErrorMessage($message);
+				
+				if ($isAjax) {
+					$result = $this->resultJsonFactory->create();
+					return $result->setData([
+						'success' => false,
+						'message' => $message->render()
+					]);
+				}
+				
+				$resultRedirect = $this->resultRedirectFactory->create();
 				return $resultRedirect->setRefererUrl();
 			}
 			
@@ -130,15 +184,54 @@ class Add extends Action implements HttpPostActionInterface
 			$this->cart->addProduct($product, ['qty' => 1]);
 			$this->cart->save();
 			
-			$this->messageManager->addSuccessMessage(__('Free cut sample has been added to your cart.'));
+			$message = __('Free cut sample has been added to your cart.');
+			$this->messageManager->addSuccessMessage($message);
+			
+			if ($isAjax) {
+				$result = $this->resultJsonFactory->create();
+				return $result->setData([
+					'success' => true,
+					'message' => $message->render(),
+					'product_name' => $product->getName(),
+					'product_sku' => $sku
+				]);
+			}
+			
 		} catch (NoSuchEntityException $e) {
-			$this->messageManager->addErrorMessage(__('The requested sample product does not exist.'));
+			$message = __('The requested sample product does not exist.');
+			$this->messageManager->addErrorMessage($message);
+			
+			if ($isAjax) {
+				$result = $this->resultJsonFactory->create();
+				return $result->setData([
+					'success' => false,
+					'message' => $message->render()
+				]);
+			}
 		} catch (LocalizedException $e) {
 			$this->messageManager->addErrorMessage($e->getMessage());
+			
+			if ($isAjax) {
+				$result = $this->resultJsonFactory->create();
+				return $result->setData([
+					'success' => false,
+					'message' => $e->getMessage()
+				]);
+			}
 		} catch (\Exception $e) {
-			$this->messageManager->addExceptionMessage($e, __('We can\'t add the tile sample to your cart right now.'));
+			$message = __('We can\'t add the tile sample to your cart right now.');
+			$this->messageManager->addExceptionMessage($e, $message);
+			
+			if ($isAjax) {
+				$result = $this->resultJsonFactory->create();
+				return $result->setData([
+					'success' => false,
+					'message' => $message->render()
+				]);
+			}
 		}
 
+		$resultRedirect = $this->resultRedirectFactory->create();
 		return $resultRedirect->setRefererUrl();
 	}
 }

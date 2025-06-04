@@ -34,4 +34,279 @@
             </button>
         <?php endif; ?>
     </div>
+
+    <script type="text/x-magento-init">
+    {
+        "*": {
+            "cravendunnill-tile-sample-cart-handler": {}
+        }
+    }
+    </script>
+
+    <!-- Enhanced Tile Sample Cart Handler -->
+    <script>
+    require(['jquery', 'Magento_Customer/js/customer-data'], function($, customerData) {
+        'use strict';
+        
+        console.log('[Tile Sample] Enhanced handler loaded');
+        
+        // Function to open minicart
+        function openMinicart() {
+            console.log('[Tile Sample] Opening minicart...');
+            
+            var isMobile = window.innerWidth <= 767;
+            
+            // Ensure minicart is positioned correctly
+            var $minicart = $('#cd-minicart');
+            if ($minicart.length) {
+                $minicart.css({
+                    'position': 'fixed',
+                    'top': '0',
+                    'z-index': '9999',
+                    'height': '100vh'
+                });
+                
+                if (isMobile) {
+                    $minicart.css({
+                        'width': '100%',
+                        'right': '-100%'
+                    });
+                } else {
+                    $minicart.css({
+                        'width': '400px',
+                        'right': '-450px'
+                    });
+                }
+            }
+            
+            // Show minicart
+            $('#cd-minicart').addClass('active');
+            $('#cd-overlay').css('display', 'block');
+            
+            // Apply blur effect to content (desktop only)
+            if (!isMobile) {
+                $('.page-main, .page-footer, .nav-sections, .breadcrumbs').css('filter', 'blur(4px)');
+            }
+            
+            // Prevent body scrolling
+            var scrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+            window.lastScrollPosition = scrollPosition;
+            
+            document.documentElement.classList.add('scroll-locked');
+            document.body.classList.add('scroll-locked');
+            document.body.style.setProperty('top', `-${scrollPosition}px`, 'important');
+        }
+        
+        // Function to refresh minicart content
+        function refreshMinicartContent() {
+            console.log('[Tile Sample] Refreshing minicart content');
+            $('.cd-minicart-content').addClass('loading');
+            
+            // Add cache-busting parameter
+            var timestamp = new Date().getTime();
+            
+            $.ajax({
+                url: '/cravendunnill_header/cart/minicart?t=' + timestamp,
+                type: 'GET',
+                cache: false,
+                success: function(response) {
+                    console.log('[Tile Sample] Minicart content updated');
+                    $('.cd-minicart-items').html(response);
+                    updateSubtotal();
+                    $('.cd-minicart-content').removeClass('loading');
+                },
+                error: function(error) {
+                    console.error('[Tile Sample] Error updating minicart:', error);
+                    $('.cd-minicart-content').removeClass('loading');
+                }
+            });
+        }
+        
+        // Function to update subtotal
+        function updateSubtotal() {
+            $.ajax({
+                url: '/cravendunnill_header/cart/subtotal?t=' + new Date().getTime(),
+                type: 'GET',
+                cache: false,
+                success: function(response) {
+                    $('#cd-minicart-subtotal').html(response);
+                }
+            });
+        }
+        
+        // Function to update cart counter
+        function updateCartCounter() {
+            var cartData = customerData.get('cart');
+            if (cartData() && typeof cartData().summary_count !== 'undefined') {
+                var itemCount = parseInt(cartData().summary_count, 10);
+                if (itemCount > 0) {
+                    $('.cd-cart-counter').removeClass('empty').text(itemCount);
+                    $('.cd-cart-counter').addClass('updated');
+                    setTimeout(function() {
+                        $('.cd-cart-counter').removeClass('updated');
+                    }, 500);
+                } else {
+                    $('.cd-cart-counter').addClass('empty').text('');
+                }
+            }
+        }
+        
+        $(document).ready(function() {
+            console.log('[Tile Sample] Setting up enhanced form handlers');
+            
+            // Handle tile sample form submission
+            $(document).on('submit', 'form[data-role="tile-sample-form"]', function(e) {
+                console.log('[Tile Sample] Form submitted via enhanced handler');
+                
+                var $form = $(this);
+                var $button = $form.find('button[type="submit"]');
+                var originalText = $button.find('span').text();
+                
+                // Show loading state
+                $button.prop('disabled', true).find('span').text('Adding...');
+                
+                // Let the form submit naturally first
+                setTimeout(function() {
+                    console.log('[Tile Sample] Starting post-submission sequence');
+                    
+                    // Multiple refresh attempts with increasing delays
+                    var attempts = 0;
+                    var maxAttempts = 5;
+                    
+                    function attemptRefresh() {
+                        attempts++;
+                        console.log('[Tile Sample] Refresh attempt', attempts);
+                        
+                        // Force invalidate and reload cart data
+                        customerData.invalidate(['cart']);
+                        customerData.reload(['cart'], true).done(function(response) {
+                            console.log('[Tile Sample] Cart data refreshed:', response);
+                            
+                            // Update counter
+                            updateCartCounter();
+                            
+                            // Refresh minicart content
+                            refreshMinicartContent();
+                            
+                            // Open minicart
+                            setTimeout(function() {
+                                openMinicart();
+                            }, 300);
+                            
+                            // Update button if sample was added successfully
+                            var cartData = customerData.get('cart')();
+                            if (cartData && cartData.summary_count > 0) {
+                                $button.find('span').html('<i class="tick-icon">✓</i> Free Cut Sample Already In Cart');
+                                $button.addClass('tile-sample-button-disabled');
+                            } else if (attempts < maxAttempts) {
+                                // Try again if cart is still empty
+                                setTimeout(attemptRefresh, 1000 * attempts);
+                            } else {
+                                // Reset button if all attempts failed
+                                $button.prop('disabled', false).find('span').text(originalText);
+                            }
+                        });
+                    }
+                    
+                    // Start first attempt
+                    attemptRefresh();
+                    
+                }, 1500); // Wait 1.5 seconds for form to submit
+            });
+            
+            // Also handle direct button clicks
+            $(document).on('click', '.tile-sample-button:not(.tile-sample-button-disabled)', function(e) {
+                console.log('[Tile Sample] Button clicked');
+                var $form = $(this).closest('form');
+                if ($form.length) {
+                    // Let the form handler take over
+                    return true;
+                }
+            });
+            
+            // Check for success messages on page load (redirect detection)
+            setTimeout(function() {
+                var $successMessages = $('.message-success');
+                if ($successMessages.length) {
+                    var messageText = $successMessages.text().toLowerCase();
+                    if (messageText.indexOf('sample') > -1 || messageText.indexOf('cut') > -1) {
+                        console.log('[Tile Sample] Success message detected on page load');
+                        
+                        // Force complete refresh
+                        customerData.invalidate(['cart']);
+                        customerData.reload(['cart'], true).done(function() {
+                            updateCartCounter();
+                            refreshMinicartContent();
+                            
+                            setTimeout(function() {
+                                openMinicart();
+                            }, 500);
+                        });
+                    }
+                }
+            }, 500);
+            
+            // Monitor cart changes for auto-detection
+            if (typeof customerData !== 'undefined') {
+                var cartData = customerData.get('cart');
+                var lastItemCount = cartData().summary_count || 0;
+                
+                cartData.subscribe(function(updatedCart) {
+                    var newItemCount = updatedCart.summary_count || 0;
+                    console.log('[Tile Sample] Cart count changed from', lastItemCount, 'to', newItemCount);
+                    
+                    if (newItemCount > lastItemCount) {
+                        console.log('[Tile Sample] New item detected, refreshing minicart');
+                        setTimeout(function() {
+                            refreshMinicartContent();
+                            if (!$('#cd-minicart').hasClass('active')) {
+                                openMinicart();
+                            }
+                        }, 200);
+                    }
+                    
+                    lastItemCount = newItemCount;
+                    updateCartCounter();
+                });
+            }
+            
+            // Initial counter update
+            updateCartCounter();
+        });
+        
+        // Global fallback function
+        window.openMinicartForTileSample = function() {
+            console.log('[Tile Sample] Manual trigger called');
+            customerData.invalidate(['cart']);
+            customerData.reload(['cart'], true).done(function() {
+                updateCartCounter();
+                refreshMinicartContent();
+                openMinicart();
+            });
+        };
+    });
+    </script>
+
+    <!-- Simple Fallback for Debugging -->
+    <script>
+    // Add to URL: ?debug_tile=1 to enable debug mode
+    if (window.location.search.indexOf('debug_tile=1') > -1) {
+        require(['jquery'], function($) {
+            $(document).ready(function() {
+                // Add debug button
+                $('body').append(
+                    '<div style="position:fixed;top:10px;right:10px;z-index:10001;background:#fff;padding:10px;border:1px solid #ccc;">' +
+                    '<h4>Tile Sample Debug</h4>' +
+                    '<button onclick="window.openMinicartForTileSample()">Force Open Cart</button><br>' +
+                    '<button onclick="customerData.reload([\'cart\'], true)">Refresh Cart Data</button><br>' +
+                    '<button onclick="console.log(customerData.get(\'cart\')())">Log Cart Data</button>' +
+                    '</div>'
+                );
+                
+                console.log('[Debug] Tile sample debug mode enabled');
+                console.log('[Debug] Current cart data:', customerData.get('cart')());
+            });
+        });
+    }
+    </script>
 <?php endif; ?>
